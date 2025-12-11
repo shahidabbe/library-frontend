@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { QRCodeCanvas } from 'qrcode.react'; 
+import logo from './logo.jpg'; // <--- LOGO IS BACK!
 
 // --- YOUR RENDER BACKEND URL ---
 const API = "https://library-backend-ac53.onrender.com/api"; 
@@ -112,7 +113,12 @@ export default function App() {
   // --- STYLES ---
   const styles = {
     container: { maxWidth: '1100px', margin: 'auto', padding: '20px', fontFamily: 'Arial, sans-serif' },
-    header: { background: '#1b5e20', color: '#ffd700', padding: '20px', textAlign: 'center', borderRadius: '8px' },
+    header: { 
+        background: '#1b5e20', color: '#ffd700', padding: '20px', 
+        textAlign: 'center', borderRadius: '8px',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px'
+    },
+    logo: { height: '80px', borderRadius: '50%', border: '3px solid #ffd700' },
     nav: { display: 'flex', gap: '10px', justifyContent: 'center', margin: '20px 0' },
     btn: { padding: '10px 15px', cursor: 'pointer', background: '#2e7d32', color: 'white', border: '1px solid gold', borderRadius: '5px' },
     section: { border: '1px solid #ddd', padding: '20px', borderRadius: '8px', marginTop: '20px', background: '#f9f9f9' },
@@ -125,7 +131,11 @@ export default function App() {
   return (
     <div style={styles.container}>
       <header style={styles.header}>
-        <h1>🏛️ IMAM ZAMAN (a.s) ISLAMIC LIBRARY</h1>
+        <img src={logo} alt="Logo" style={styles.logo} />
+        <div>
+           <h1 style={{margin: 0}}>IMAM ZAMAN (a.s) ISLAMIC LIBRARY</h1>
+           <p style={{margin: 0, fontStyle: 'italic', opacity: 0.9}}>Knowledge is the Life of the Soul</p>
+        </div>
       </header>
 
       {/* NAVIGATION */}
