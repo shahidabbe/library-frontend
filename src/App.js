@@ -9,10 +9,10 @@ const API = "https://library-backend-ac53.onrender.com/api";
 export default function App() {
   // --- STATES ---
   const [view, setView] = useState('public'); 
-  const [books, setBooks] = useState([]);         // Full List from DB
-  const [members, setMembers] = useState([]);     // Full List from DB
+  const [books, setBooks] = useState([]);         
+  const [members, setMembers] = useState([]);     
   
-  // Display Lists (Controlled by Search Button)
+  // These lists control what is shown on screen (filtered results)
   const [displayedBooks, setDisplayedBooks] = useState([]);
   const [displayedMembers, setDisplayedMembers] = useState([]);
 
@@ -35,6 +35,8 @@ export default function App() {
 
   // Search Inputs
   const [publicQuery, setPublicQuery] = useState('');
+  const [searchMode, setSearchMode] = useState('title'); // 'title' or 'author'
+  
   const [adminBookQuery, setAdminBookQuery] = useState('');
   const [adminMemberQuery, setAdminMemberQuery] = useState('');
 
@@ -49,29 +51,66 @@ export default function App() {
       const mRes = await axios.get(`${API}/members`);
       setBooks(bRes.data);
       setMembers(mRes.data);
-      // Initially show all
-      setDisplayedBooks(bRes.data);
-      setDisplayedMembers(mRes.data);
+      setDisplayedBooks(bRes.data);   // Show all initially
+      setDisplayedMembers(mRes.data); // Show all initially
     } catch (err) { console.error("Error loading data", err); }
   };
 
-  // --- SEARCH LOGIC (ANY ATTRIBUTE) ---
-  const handleSearch = (type) => {
-    if (type === 'public') {
-      if(!publicQuery) return setDisplayedBooks(books);
-      const result = books.filter(item => Object.values(item).some(val => String(val).toLowerCase().includes(publicQuery.toLowerCase())));
-      setDisplayedBooks(result);
+  // --- 1. PUBLIC SEARCH (Specific: Title OR Author) ---
+  const handlePublicSearch = () => {
+    if (!publicQuery) {
+        alert("Please type something to search.");
+        return;
     }
-    if (type === 'adminBook') {
-      if(!adminBookQuery) return setDisplayedBooks(books);
-      const result = books.filter(item => Object.values(item).some(val => String(val).toLowerCase().includes(adminBookQuery.toLowerCase())));
-      setDisplayedBooks(result);
+    const lowerQ = publicQuery.toLowerCase();
+    
+    // Filter based on the selected Radio Button
+    const result = books.filter(book => {
+        if (searchMode === 'title') {
+            return book.title.toLowerCase().includes(lowerQ);
+        } else {
+            return book.author.toLowerCase().includes(lowerQ);
+        }
+    });
+
+    if (result.length === 0) {
+        alert("No books found matching that search.");
     }
-    if (type === 'adminMember') {
-      if(!adminMemberQuery) return setDisplayedMembers(members);
-      const result = members.filter(item => Object.values(item).some(val => String(val).toLowerCase().includes(adminMemberQuery.toLowerCase())));
-      setDisplayedMembers(result);
-    }
+    setDisplayedBooks(result);
+  };
+
+  // --- 2. ADMIN BOOK SEARCH (Search Anything) ---
+  const handleAdminBookSearch = () => {
+    if (!adminBookQuery) return;
+    const lowerQ = adminBookQuery.toLowerCase();
+    const result = books.filter(item => 
+        Object.values(item).some(val => String(val).toLowerCase().includes(lowerQ))
+    );
+    if (result.length === 0) alert("No books found.");
+    setDisplayedBooks(result);
+  };
+
+  // --- 3. ADMIN MEMBER SEARCH (Search Anything) ---
+  const handleAdminMemberSearch = () => {
+    if (!adminMemberQuery) return;
+    const lowerQ = adminMemberQuery.toLowerCase();
+    const result = members.filter(item => 
+        Object.values(item).some(val => String(val).toLowerCase().includes(lowerQ))
+    );
+    if (result.length === 0) alert("No members found.");
+    setDisplayedMembers(result);
+  };
+
+  // --- RESET BUTTONS ---
+  const showAllBooks = () => {
+    setDisplayedBooks(books);
+    setPublicQuery('');
+    setAdminBookQuery('');
+  };
+
+  const showAllMembers = () => {
+    setDisplayedMembers(members);
+    setAdminMemberQuery('');
   };
 
   // --- LOGIN ---
@@ -80,9 +119,8 @@ export default function App() {
     if (username === "admin" && password === "1234") {
       setIsAdmin(true);
       setView('admin');
-      // Reset Admin filters when logging in
-      setDisplayedBooks(books);
-      setDisplayedMembers(members);
+      showAllBooks();
+      showAllMembers();
     } else {
       alert("Wrong ID or Password!");
     }
@@ -90,6 +128,7 @@ export default function App() {
 
   const handleLogout = () => {
     setIsAdmin(false); setView('public'); setUsername(''); setPassword('');
+    showAllBooks();
   };
 
   // --- ADMIN ACTIONS ---
@@ -139,12 +178,14 @@ export default function App() {
     nav: { display: 'flex', gap: '10px', justifyContent: 'center', margin: '20px 0' },
     btn: { padding: '10px 15px', cursor: 'pointer', background: '#2e7d32', color: 'white', border: '1px solid gold', borderRadius: '5px' },
     searchBtn: { padding: '10px 20px', cursor: 'pointer', background: '#f57f17', color: 'white', border: 'none', borderRadius: '5px', fontWeight: 'bold' },
+    resetBtn: { padding: '10px 15px', cursor: 'pointer', background: '#555', color: 'white', border: 'none', borderRadius: '5px', marginLeft: '5px' },
     section: { border: '1px solid #ddd', padding: '20px', borderRadius: '8px', marginTop: '20px', background: '#f9f9f9' },
     input: { padding: '10px', margin: '5px', borderRadius: '4px', border: '1px solid #ccc', width: '220px' },
     idBox: { background: '#e0e0e0', border: '1px solid #999', padding: '5px', fontFamily: 'monospace', fontWeight: 'bold', width: '200px' },
     card: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '15px', margin: '10px 0', border: '1px solid #eee', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' },
     qrBlock: { textAlign: 'center', marginLeft: '15px' },
-    row: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' }
+    row: { display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '10px' },
+    radioGroup: { display: 'flex', gap: '15px', margin: '10px 0', fontSize: '1.1rem', fontWeight: 'bold' }
   };
 
   return (
@@ -170,19 +211,39 @@ export default function App() {
         )}
       </div>
 
-      {/* === PUBLIC SEARCH (TITLE, AUTHOR, SHELF, ETC) === */}
+      {/* === PUBLIC SEARCH (TITLE or AUTHOR only) === */}
       {view === 'public' && (
         <div style={styles.section}>
           <h2 style={{color: '#1b5e20'}}>🔍 Search Library Catalog</h2>
+          
+          <div style={styles.radioGroup}>
+            <label>
+                <input 
+                    type="radio" 
+                    value="title" 
+                    checked={searchMode === 'title'} 
+                    onChange={() => setSearchMode('title')} 
+                /> Search by Title
+            </label>
+            <label>
+                <input 
+                    type="radio" 
+                    value="author" 
+                    checked={searchMode === 'author'} 
+                    onChange={() => setSearchMode('author')} 
+                /> Search by Author
+            </label>
+          </div>
+
           <div style={{marginBottom: '20px'}}>
             <input 
                 style={{...styles.input, width: '60%'}} 
-                placeholder="Type Title, Author, Shelf, Category..." 
+                placeholder={searchMode === 'title' ? "Enter Book Title..." : "Enter Author Name..."}
                 value={publicQuery} 
                 onChange={e => setPublicQuery(e.target.value)} 
             />
-            <button style={styles.searchBtn} onClick={() => handleSearch('public')}>SEARCH</button>
-            <button style={{...styles.btn, background: '#555', marginLeft:'5px'}} onClick={refreshData}>Reset</button>
+            <button style={styles.searchBtn} onClick={handlePublicSearch}>SEARCH</button>
+            <button style={styles.resetBtn} onClick={showAllBooks}>SHOW ALL BOOKS</button>
           </div>
 
           {displayedBooks.map(book => (
@@ -252,7 +313,8 @@ export default function App() {
                     value={adminBookQuery} 
                     onChange={e => setAdminBookQuery(e.target.value)} 
                 />
-                <button style={styles.searchBtn} onClick={() => handleSearch('adminBook')}>FILTER BOOKS</button>
+                <button style={styles.searchBtn} onClick={handleAdminBookSearch}>SEARCH</button>
+                <button style={styles.resetBtn} onClick={showAllBooks}>SHOW ALL</button>
             </div>
             
             {displayedBooks.map(book => (
@@ -292,7 +354,8 @@ export default function App() {
                     value={adminMemberQuery} 
                     onChange={e => setAdminMemberQuery(e.target.value)} 
                 />
-                <button style={styles.searchBtn} onClick={() => handleSearch('adminMember')}>FILTER MEMBERS</button>
+                <button style={styles.searchBtn} onClick={handleAdminMemberSearch}>SEARCH</button>
+                <button style={styles.resetBtn} onClick={showAllMembers}>SHOW ALL</button>
             </div>
 
             {displayedMembers.map(member => (
