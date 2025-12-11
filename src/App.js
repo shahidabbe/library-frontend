@@ -1,207 +1,256 @@
-/* 
-   ==========================================================================
-   IMAM ZAMAN a.s ISLAMIC LIBRARY - MAIN APP
-   ==========================================================================
-*/
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import logo from './logo.jpg'; 
+import { QRCodeCanvas } from 'qrcode.react'; // QR Code Library
 
 // --- YOUR RENDER BACKEND URL ---
 const API = "https://library-backend-ac53.onrender.com/api"; 
 
 export default function App() {
-  const [view, setView] = useState('home');
-
-  return (
-    <div style={styles.app}>
-      {/* HEADER */}
-      <header style={styles.header}>
-        <img src={logo} alt="Logo" style={styles.logo} />
-        <div>
-          <h1 style={styles.title}>IMAM ZAMAN (a.s) ISLAMIC LIBRARY</h1>
-          <p style={styles.subtitle}>Knowledge is the Life of the Soul</p>
-        </div>
-      </header>
-
-      {/* NAVIGATION */}
-      <nav style={styles.nav}>
-        <button style={styles.navBtn} onClick={() => setView('home')}>Home</button>
-        <button style={styles.navBtn} onClick={() => setView('public')}>Public Search</button>
-        <button style={styles.navBtn} onClick={() => setView('admin')}>Admin Dashboard</button>
-      </nav>
-
-      {/* CONTENT AREA */}
-      <div style={styles.content}>
-        {view === 'home' && <HomeView />}
-        {view === 'public' && <PublicSearch />}
-        {view === 'admin' && <AdminDashboard />}
-      </div>
-      
-      <footer style={styles.footer}>
-        <p>&copy; 2025 IMAM ZAMAN a.s ISLAMIC LIBRARY System</p>
-      </footer>
-    </div>
-  );
-}
-
-// --- VIEW COMPONENTS ---
-
-function HomeView() {
-  return (
-    <div style={{textAlign: 'center', padding: '50px'}}>
-      <h2 style={{color: '#004d40', fontSize: '2rem'}}>Welcome to the Library</h2>
-      <p style={{fontSize: '1.2rem'}}>Explore our collection of Islamic literature and knowledge.</p>
-    </div>
-  );
-}
-
-function PublicSearch() {
-  const [query, setQuery] = useState("");
+  // --- STATES ---
+  const [view, setView] = useState('public'); 
   const [books, setBooks] = useState([]);
+  const [members, setMembers] = useState([]);
+  
+  // Login State
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  const search = async () => {
+  // Admin Actions
+  const [newBook, setNewBook] = useState({ title: '', author: '', isbn: '', copies: 1 });
+  const [newMember, setNewMember] = useState({ name: '', email: '', phone: '' });
+  
+  // QR Transaction State
+  const [transBookId, setTransBookId] = useState('');
+  const [transMemberId, setTransMemberId] = useState('');
+
+  // Search Filters
+  const [publicSearch, setPublicSearch] = useState('');
+  const [adminBookSearch, setAdminBookSearch] = useState('');
+  const [adminMemberSearch, setAdminMemberSearch] = useState('');
+
+  // --- INITIAL DATA LOAD ---
+  useEffect(() => {
+    refreshData();
+  }, []);
+
+  const refreshData = async () => {
     try {
-      const res = await axios.get(`${API}/search?q=${query}`);
-      setBooks(res.data);
-    } catch (e) { alert("Error connecting to server. Check API URL."); }
+      const bRes = await axios.get(`${API}/books`);
+      const mRes = await axios.get(`${API}/members`);
+      setBooks(bRes.data);
+      setMembers(mRes.data);
+    } catch (err) { console.error("Error loading data", err); }
   };
 
-  return (
-    <div>
-      <h2 style={{color: '#004d40'}}>Public Catalog Search</h2>
-      <div style={styles.searchBar}>
-        <input 
-          style={styles.input} 
-          placeholder="Enter Book Title or Author..." 
-          onChange={(e) => setQuery(e.target.value)} 
-        />
-        <button style={styles.btn} onClick={search}>Search</button>
-      </div>
-      
-      <div style={styles.grid}>
-        {books.map(b => (
-          <div key={b._id} style={styles.card}>
-            <h3 style={{margin: '0 0 10px 0', color: '#1b5e20'}}>{b.title}</h3>
-            <p><strong>Author:</strong> {b.author}</p>
-            <p><strong>Status:</strong> <span style={{fontWeight: 'bold', color: b.available>0?'green':'red'}}>{b.available > 0 ? 'Available' : 'Issued'}</span></p>
-            <p><strong>Shelf:</strong> {b.shelfNumber}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function AdminDashboard() {
-  const [tab, setTab] = useState('addBook');
-  const [data, setData] = useState({});
-
-  const handleInput = (e) => setData({...data, [e.target.name]: e.target.value});
-
-  const submitBook = async () => {
-    try { await axios.post(`${API}/books`, data); alert("Book Added Successfully!"); }
-    catch (e) { alert("Error Adding Book"); }
+  // --- SECURITY (LOGIN) ---
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (username === "admin" && password === "1234") {
+      setIsAdmin(true);
+      setView('admin');
+    } else {
+      alert("Wrong ID or Password!");
+    }
   };
 
-  const submitMember = async () => {
-    try { await axios.post(`${API}/members`, data); alert("Member Registered!"); }
-    catch (e) { alert("Error Adding Member"); }
+  const handleLogout = () => {
+    setIsAdmin(false);
+    setView('public');
+    setUsername('');
+    setPassword('');
+  };
+
+  // --- ADMIN ACTIONS ---
+  const addBook = async () => {
+    if (!newBook.title) return alert("Enter a title");
+    await axios.post(`${API}/books`, newBook);
+    alert("Book Added!");
+    setNewBook({ title: '', author: '', isbn: '', copies: 1 });
+    refreshData();
+  };
+
+  const addMember = async () => {
+    if (!newMember.name) return alert("Enter a name");
+    await axios.post(`${API}/members`, newMember);
+    alert("Member Added!");
+    setNewMember({ name: '', email: '', phone: '' });
+    refreshData();
   };
 
   const issueBook = async () => {
-    try { await axios.post(`${API}/issue`, data); alert("Book Issued Successfully!"); }
-    catch (e) { alert("Error Issuing Book (Check Availability)"); }
+    if (!transBookId || !transMemberId) return alert("Scan both QR Codes first");
+    try {
+      await axios.post(`${API}/transactions/issue`, { bookId: transBookId, memberId: transMemberId });
+      alert("✅ Book Issued Successfully!");
+      setTransBookId(''); setTransMemberId(''); 
+      refreshData();
+    } catch (err) { alert("Failed: " + (err.response?.data?.error || "Unknown Error")); }
   };
 
   const returnBook = async () => {
-    try { 
-      const res = await axios.post(`${API}/return`, data); 
-      alert(`Book Returned.\n\nFine Amount: ${res.data.fine}`); 
-    }
-    catch (e) { alert("Error Returning Book"); }
+    if (!transBookId || !transMemberId) return alert("Scan both QR Codes first");
+    try {
+      await axios.post(`${API}/transactions/return`, { bookId: transBookId, memberId: transMemberId });
+      alert("✅ Book Returned Successfully!");
+      setTransBookId(''); setTransMemberId('');
+      refreshData();
+    } catch (err) { alert("Failed: " + (err.response?.data?.error || "Unknown Error")); }
+  };
+
+  // --- FILTERS ---
+  const publicBooks = books.filter(b => b.title.toLowerCase().includes(publicSearch.toLowerCase()));
+  const adminBooks = books.filter(b => b.title.toLowerCase().includes(adminBookSearch.toLowerCase()));
+  const adminMembers = members.filter(m => m.name.toLowerCase().includes(adminMemberSearch.toLowerCase()));
+
+  // --- STYLES ---
+  const styles = {
+    container: { maxWidth: '1000px', margin: 'auto', padding: '20px', fontFamily: 'sans-serif' },
+    header: { background: '#1b5e20', color: '#ffd700', padding: '20px', textAlign: 'center', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' },
+    nav: { display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px' },
+    btn: { padding: '10px 20px', cursor: 'pointer', background: '#2e7d32', color: 'white', border: '1px solid gold', borderRadius: '5px', fontWeight: 'bold' },
+    section: { border: '1px solid #ddd', padding: '20px', borderRadius: '10px', marginTop: '20px', background: '#f9f9f9' },
+    input: { padding: '10px', width: '200px', margin: '5px', borderRadius: '5px', border: '1px solid #ccc' },
+    card: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', padding: '15px', margin: '10px 0', border: '1px solid #eee', borderRadius: '5px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' },
+    qrBlock: { textAlign: 'center', marginLeft: '10px' }
   };
 
   return (
-    <div style={styles.dashboard}>
-      <div style={styles.sidebar}>
-        <button style={styles.sideBtn} onClick={() => setTab('addBook')}>Add Book</button>
-        <button style={styles.sideBtn} onClick={() => setTab('addMember')}>Add Member</button>
-        <button style={styles.sideBtn} onClick={() => setTab('issue')}>Issue Book</button>
-        <button style={styles.sideBtn} onClick={() => setTab('return')}>Return Book</button>
-      </div>
-      <div style={styles.panel}>
-        {tab === 'addBook' && (
+    <div style={styles.container}>
+      <header style={styles.header}>
+        <h1>🏛️ IMAM ZAMAN (a.s) LIBRARY SYSTEM</h1>
+      </header>
+
+      {/* NAVIGATION */}
+      <div style={styles.nav}>
+        <button style={styles.btn} onClick={() => setView('public')}>Public Search</button>
+        {!isAdmin ? (
+          <button style={{...styles.btn, background: '#0d47a1'}} onClick={() => setView('login')}>Admin Login</button>
+        ) : (
           <>
-            <h3>Add New Book</h3>
-            <input name="title" placeholder="Title" style={styles.input} onChange={handleInput} />
-            <input name="author" placeholder="Author" style={styles.input} onChange={handleInput} />
-            <input name="edition" placeholder="Edition" style={styles.input} onChange={handleInput} />
-            <input name="language" placeholder="Language" style={styles.input} onChange={handleInput} />
-            <input name="shelfNumber" placeholder="Shelf No." style={styles.input} onChange={handleInput} />
-            <input name="copies" type="number" placeholder="Copies" style={styles.input} onChange={handleInput} />
-            <button style={styles.btn} onClick={submitBook}>Save Book</button>
-          </>
-        )}
-        {tab === 'addMember' && (
-          <>
-            <h3>Add New Member</h3>
-            <input name="name" placeholder="Name" style={styles.input} onChange={handleInput} />
-            <input name="fatherName" placeholder="S/o" style={styles.input} onChange={handleInput} />
-            <input name="address" placeholder="R/o (Address)" style={styles.input} onChange={handleInput} />
-            <input name="email" placeholder="Email" style={styles.input} onChange={handleInput} />
-            <input name="phone" placeholder="Phone" style={styles.input} onChange={handleInput} />
-            <button style={styles.btn} onClick={submitMember}>Register Member</button>
-          </>
-        )}
-        {tab === 'issue' && (
-          <>
-            <h3>Issue Book</h3>
-            <input name="bookId" placeholder="Book ID (Copy from DB)" style={styles.input} onChange={handleInput} />
-            <input name="memberId" placeholder="Member ID" style={styles.input} onChange={handleInput} />
-            <input name="days" type="number" placeholder="Days (e.g. 15)" style={styles.input} onChange={handleInput} />
-            <button style={styles.btn} onClick={issueBook}>Issue Now</button>
-          </>
-        )}
-        {tab === 'return' && (
-          <>
-            <h3>Return Book</h3>
-            <input name="bookId" placeholder="Book ID" style={styles.input} onChange={handleInput} />
-            <input name="memberId" placeholder="Member ID" style={styles.input} onChange={handleInput} />
-            <button style={styles.btn} onClick={returnBook}>Process Return</button>
+            <button style={{...styles.btn, background: '#1b5e20'}} onClick={() => setView('admin')}>Dashboard</button>
+            <button style={{...styles.btn, background: '#c62828'}} onClick={handleLogout}>Logout</button>
           </>
         )}
       </div>
+
+      {/* === VIEW: PUBLIC SEARCH === */}
+      {view === 'public' && (
+        <div style={styles.section}>
+          <h2 style={{color: '#1b5e20'}}>🔍 Search for Books</h2>
+          <input 
+            style={{...styles.input, width: '95%'}} 
+            placeholder="Type book title or author..." 
+            value={publicSearch} 
+            onChange={e => setPublicSearch(e.target.value)} 
+          />
+          {publicBooks.map(book => (
+            <div key={book._id} style={styles.card}>
+              <div>
+                <h3 style={{margin:0, color:'#2e7d32'}}>{book.title}</h3>
+                <p>Author: {book.author}</p>
+              </div>
+              <div>
+                {book.copies > 0 
+                  ? <span style={{color:'green', fontWeight:'bold'}}>AVAILABLE ({book.copies})</span> 
+                  : <span style={{color:'red', fontWeight:'bold'}}>OUT OF STOCK</span>
+                }
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* === VIEW: LOGIN === */}
+      {view === 'login' && (
+        <div style={{...styles.section, textAlign: 'center', maxWidth: '400px', margin: '40px auto'}}>
+          <h2>🔐 Admin Access</h2>
+          <form onSubmit={handleLogin}>
+            <input style={styles.input} placeholder="Username" value={username} onChange={e => setUsername(e.target.value)} /><br/>
+            <input type="password" style={styles.input} placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} /><br/>
+            <button type="submit" style={{...styles.btn, background: 'gold', color: 'black', marginTop: '10px'}}>Login</button>
+          </form>
+        </div>
+      )}
+
+      {/* === VIEW: ADMIN DASHBOARD === */}
+      {view === 'admin' && (
+        <div>
+          {/* 1. TRANSACTION DESK (SCAN QR) */}
+          <div style={{...styles.section, border: '2px solid gold'}}>
+            <h3>⚡ Quick Issue / Return (Scan QR)</h3>
+            <p>Click inside the box, then scan the QR code.</p>
+            <input 
+              style={{...styles.input, width: '40%', borderColor: 'blue'}} 
+              placeholder="Click here & Scan BOOK QR" 
+              value={transBookId} 
+              onChange={e => setTransBookId(e.target.value)} 
+            />
+            <input 
+              style={{...styles.input, width: '40%', borderColor: 'green'}} 
+              placeholder="Click here & Scan MEMBER QR" 
+              value={transMemberId} 
+              onChange={e => setTransMemberId(e.target.value)} 
+            />
+            <br/>
+            <button style={{...styles.btn, background: 'green', marginRight: '10px'}} onClick={issueBook}>ISSUE BOOK</button>
+            <button style={{...styles.btn, background: 'orange'}} onClick={returnBook}>RETURN BOOK</button>
+          </div>
+
+          {/* 2. MANAGE BOOKS */}
+          <div style={styles.section}>
+            <h3>📚 Manage Books</h3>
+            <div style={{marginBottom:'15px'}}>
+              <input style={styles.input} placeholder="Title" value={newBook.title} onChange={e => setNewBook({...newBook, title:e.target.value})}/>
+              <input style={styles.input} placeholder="Author" value={newBook.author} onChange={e => setNewBook({...newBook, author:e.target.value})}/>
+              <input style={styles.input} placeholder="ISBN" value={newBook.isbn} onChange={e => setNewBook({...newBook, isbn:e.target.value})}/>
+              <input type="number" style={{...styles.input, width:'60px'}} placeholder="Qty" value={newBook.copies} onChange={e => setNewBook({...newBook, copies:e.target.value})}/>
+              <button style={styles.btn} onClick={addBook}>Add Book</button>
+            </div>
+            
+            <input style={{...styles.input, width: '95%', background:'#eef'}} placeholder="Filter Admin Books..." value={adminBookSearch} onChange={e => setAdminBookSearch(e.target.value)} />
+            
+            {adminBooks.map(book => (
+              <div key={book._id} style={styles.card}>
+                <div>
+                  <strong>{book.title}</strong><br/>
+                  <small>ID: {book._id}</small><br/>
+                  Copies: {book.copies}
+                </div>
+                <div style={styles.qrBlock}>
+                  <QRCodeCanvas value={book._id} size={64} />
+                  <br/><small>Book QR</small>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* 3. MANAGE MEMBERS */}
+          <div style={styles.section}>
+            <h3>👥 Manage Members</h3>
+            <div style={{marginBottom:'15px'}}>
+              <input style={styles.input} placeholder="Name" value={newMember.name} onChange={e => setNewMember({...newMember, name:e.target.value})}/>
+              <input style={styles.input} placeholder="Phone" value={newMember.phone} onChange={e => setNewMember({...newMember, phone:e.target.value})}/>
+              <button style={styles.btn} onClick={addMember}>Add Member</button>
+            </div>
+
+            <input style={{...styles.input, width: '95%', background:'#eef'}} placeholder="Filter Members..." value={adminMemberSearch} onChange={e => setAdminMemberSearch(e.target.value)} />
+
+            {adminMembers.map(member => (
+              <div key={member._id} style={styles.card}>
+                <div>
+                  <strong>{member.name}</strong><br/>
+                  <small>ID: {member._id}</small>
+                </div>
+                <div style={styles.qrBlock}>
+                  <QRCodeCanvas value={member._id} size={64} />
+                  <br/><small>Member QR</small>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
-
-// --- STYLES (Deep Green & Gold) ---
-const styles = {
-  app: { fontFamily: "Georgia, serif", backgroundColor: '#f4f4f4', minHeight: '100vh' },
-  header: { 
-    display: 'flex', alignItems: 'center', padding: '20px 40px', 
-    backgroundColor: '#1b5e20', color: '#ffd700', borderBottom: '5px solid #ffd700',
-    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-  },
-  logo: { height: '80px', marginRight: '20px', borderRadius: '50%', border: '2px solid #ffd700' },
-  title: { margin: 0, fontSize: '1.8rem', letterSpacing: '1px' },
-  subtitle: { margin: 0, fontStyle: 'italic', opacity: 0.9, fontSize: '1rem' },
-  nav: { backgroundColor: '#2e7d32', padding: '10px', textAlign: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' },
-  navBtn: { 
-    margin: '0 15px', padding: '10px 25px', backgroundColor: 'transparent', 
-    color: 'white', border: '1px solid #ffd700', borderRadius: '30px', 
-    cursor: 'pointer', fontSize: '1rem', transition: 'all 0.3s'
-  },
-  content: { padding: '40px', maxWidth: '1200px', margin: '0 auto' },
-  footer: { textAlign: 'center', padding: '20px', backgroundColor: '#1b5e20', color: 'white', marginTop: '50px' },
-  searchBar: { display: 'flex', gap: '10px', marginBottom: '30px' },
-  input: { padding: '12px', flex: 1, border: '1px solid #ccc', borderRadius: '5px', marginBottom: '15px', width: '100%', fontSize: '1rem' },
-  btn: { padding: '12px 30px', backgroundColor: '#1b5e20', color: '#ffd700', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem' },
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '25px' },
-  card: { backgroundColor: 'white', padding: '25px', borderRadius: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)', borderTop: '5px solid #1b5e20' },
-  dashboard: { display: 'flex', gap: '30px', alignItems: 'flex-start' },
-  sidebar: { width: '220px', display: 'flex', flexDirection: 'column', gap: '10px' },
-  sideBtn: { padding: '15px', backgroundColor: '#fff', border: '1px solid #ddd', borderRadius: '5px', cursor: 'pointer', textAlign: 'left', fontSize: '1rem', fontWeight: 'bold', color: '#2e7d32' },
-  panel: { flex: 1, backgroundColor: 'white', padding: '40px', borderRadius: '10px', boxShadow: '0 4px 15px rgba(0,0,0,0.1)' }
-};
