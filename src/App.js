@@ -330,12 +330,14 @@ export default function App() {
            {/* 3. MANAGE MEMBERS */}
            <div style={styles.filterBox}>
               <h3>👥 Manage Members</h3>
-              <div style={{display:'flex', flexWrap:'wrap', gap:'5px', marginBottom:'15px'}}>
-                <input style={styles.input} placeholder="Name" value={newMember.name} onChange={e=>setNewMember({...newMember, name:e.target.value})}/>
-                <input style={styles.input} placeholder="Father Name" value={newMember.fatherName} onChange={e=>setNewMember({...newMember, fatherName:e.target.value})}/>
-                <input style={styles.input} placeholder="Phone" value={newMember.phone} onChange={e=>setNewMember({...newMember, phone:e.target.value})}/>
-                <button style={styles.btn} onClick={addMember}>+ ADD</button>
-              </div>
+            <div style={{display:'flex', flexWrap:'wrap', gap:'5px', marginBottom:'15px'}}>
+   <input style={styles.input} placeholder="Name" value={newMember.name} onChange={e=>setNewMember({...newMember, name:e.target.value})}/>
+   <input style={styles.input} placeholder="Father Name" value={newMember.fatherName} onChange={e=>setNewMember({...newMember, fatherName:e.target.value})}/>
+   <input style={styles.input} placeholder="R/o (Address)" value={newMember.address} onChange={e=>setNewMember({...newMember, address:e.target.value})}/>
+   <input style={styles.input} placeholder="Phone" value={newMember.phone} onChange={e=>setNewMember({...newMember, phone:e.target.value})}/>
+   <button style={styles.btn} onClick={addMember}>+ ADD</button>
+</div>
+
 
               <div style={{background:'#fff', padding:'10px', borderRadius:'5px'}}>
                  <strong>Filter By: </strong>
