@@ -3,7 +3,6 @@ import axios from 'axios';
 import { QRCodeCanvas } from 'qrcode.react'; 
 import logo from './logo.jpg'; 
 
-// --- WE WILL TRY BOTH URLS AUTOMATICALLY ---
 const BASE_URL = "https://library-backend-ac53.onrender.com"; 
 
 export default function App() {
@@ -18,6 +17,7 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // ADDED 'section' BACK HERE
   const [newBook, setNewBook] = useState({ title: '', author: '', language: '', volume: '', section: '', category: '', shelfNumber: '', copies: 1 });
   const [newMember, setNewMember] = useState({ name: '', fatherName: '', address: '', email: '', phone: '' });
   
@@ -28,19 +28,15 @@ export default function App() {
   const [adminBookQuery, setAdminBookQuery] = useState('');
   const [adminMemberQuery, setAdminMemberQuery] = useState('');
 
-  // --- SMART DATA LOADER ---
   useEffect(() => { refreshData(); }, []);
 
   const refreshData = async () => {
     try {
-      // Try /api/books first
-      console.log("Trying /api/books...");
+      console.log("Loading Data...");
       let bRes = await axios.get(`${BASE_URL}/api/books`).catch(() => null);
       let mRes = await axios.get(`${BASE_URL}/api/members`).catch(() => null);
 
-      // If that failed, try /books (no /api)
       if (!bRes) {
-         console.log("Trying /books (no api)...");
          bRes = await axios.get(`${BASE_URL}/books`);
          mRes = await axios.get(`${BASE_URL}/members`);
       }
@@ -49,15 +45,14 @@ export default function App() {
       setMembers(mRes.data);
       setDisplayedBooks(bRes.data);   
       setDisplayedMembers(mRes.data); 
-      console.log("Data Loaded Successfully!");
+      console.log("Data Loaded!");
 
     } catch (err) { 
-        console.error("CRITICAL LOAD ERROR:", err); 
+        console.error("LOAD ERROR:", err); 
         alert("Could not load data. Check console.");
     }
   };
 
-  // --- ACTIONS ---
   const handleAdminBookFilter = () => {
     if (!adminBookQuery) return setDisplayedBooks(books);
     const q = adminBookQuery.toLowerCase();
@@ -98,13 +93,11 @@ export default function App() {
 
   const handleLogout = () => { setIsAdmin(false); setView('public'); showAllBooks(); };
 
-  // --- SMART ADDER (Tries both routes) ---
   const addBook = async () => {
     if (!newBook.title) return alert("Title Required");
     try {
         await axios.post(`${BASE_URL}/api/books`, newBook);
     } catch (e) {
-        // Retry without /api
         await axios.post(`${BASE_URL}/books`, newBook);
     }
     alert("Book Saved!"); 
@@ -138,7 +131,6 @@ export default function App() {
     alert("✅ Returned!"); refreshData();
   };
 
-  // --- STYLES ---
   const styles = {
     container: { maxWidth: '1200px', margin: 'auto', padding: '20px', fontFamily: 'Arial, sans-serif' },
     header: { background: '#1b5e20', color: '#ffd700', padding: '20px', textAlign: 'center', borderRadius: '8px', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' },
@@ -211,6 +203,8 @@ export default function App() {
                 <input style={styles.input} placeholder="Author" value={newBook.author} onChange={e=>setNewBook({...newBook, author:e.target.value})}/>
                 <input style={styles.input} placeholder="Lang" value={newBook.language} onChange={e=>setNewBook({...newBook, language:e.target.value})}/>
                 <input style={styles.input} placeholder="Shelf" value={newBook.shelfNumber} onChange={e=>setNewBook({...newBook, shelfNumber:e.target.value})}/>
+                {/* ADDED SECTION INPUT HERE */}
+                <input style={styles.input} placeholder="Section" value={newBook.section} onChange={e=>setNewBook({...newBook, section:e.target.value})}/>
                 <input style={styles.input} placeholder="Cat" value={newBook.category} onChange={e=>setNewBook({...newBook, category:e.target.value})}/>
                 <input type="number" style={{...styles.input, width:'60px'}} placeholder="Qty" value={newBook.copies} onChange={e=>setNewBook({...newBook, copies:e.target.value})}/>
                 <button style={styles.btn} onClick={addBook}>+ ADD</button>
@@ -226,7 +220,8 @@ export default function App() {
 
               {displayedBooks.map(b => (
                 <div key={b._id} style={styles.card}>
-                   <div><strong>{b.title}</strong><br/>Shelf: {b.shelfNumber} | {b.category}<br/><small>ID: {b._id}</small></div>
+                   <div><strong>{b.title}</strong><br/>Shelf: {b.shelfNumber} | Section: {b.section}<br/><small>ID: {b._id}</small></div>
+                   {/* QR CODE IS HERE */}
                    <div style={{textAlign:'center'}}><QRCodeCanvas value={b._id} size={50}/><br/><small>Scan</small></div>
                 </div>
               ))}
