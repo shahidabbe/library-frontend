@@ -45,22 +45,38 @@ export default function App() {
   const refreshData = async () => {
     try {
       console.log("Loading Data...");
-      let bRes = await axios.get(`${BASE_URL}/api/books`).catch(() => null);
-      let mRes = await axios.get(`${BASE_URL}/api/members`).catch(() => null);
-      let tRes = await axios.get(`${BASE_URL}/api/transactions`).catch(() => null); // Load History
+      
+      // Parallel Fetch for speed
+      const [bRes, mRes, tRes] = await Promise.all([
+         axios.get(`${BASE_URL}/api/books`).catch(() => null),
+         axios.get(`${BASE_URL}/api/members`).catch(() => null),
+         axios.get(`${BASE_URL}/api/transactions`).catch((e) => { console.error("History Error", e); return null; })
+      ]);
 
+      // Fallback if APIs fail (legacy support)
       if (!bRes) {
-         bRes = await axios.get(`${BASE_URL}/books`);
-         mRes = await axios.get(`${BASE_URL}/members`);
+         const fb = await axios.get(`${BASE_URL}/books`).catch(()=>null);
+         const fm = await axios.get(`${BASE_URL}/members`).catch(()=>null);
+         if(fb) setBooks(fb.data);
+         if(fm) setMembers(fm.data);
+         if(fb) setDisplayedBooks(fb.data);
+         if(fm) setDisplayedMembers(fm.data);
+      } else {
+         setBooks(bRes.data);
+         setMembers(mRes.data);
+         setDisplayedBooks(bRes.data);   
+         setDisplayedMembers(mRes.data);
       }
 
-      setBooks(bRes.data);
-      setMembers(mRes.data);
-      if(tRes) setTransactions(tRes.data);
+      // SET TRANSACTIONS
+      if (tRes && tRes.data) {
+          console.log("✅ Transactions Loaded:", tRes.data.length);
+          setTransactions(tRes.data);
+      } else {
+          console.warn("⚠️ No Transactions Loaded (Check Backend)");
+      }
 
-      setDisplayedBooks(bRes.data);   
-      setDisplayedMembers(mRes.data); 
-      console.log("Data Loaded!");
+      console.log("Data Refresh Complete!");
     } catch (err) { console.error("Error loading data", err); }
   };
 
@@ -69,7 +85,7 @@ export default function App() {
     const txn = transactions.find(t => t.bookId === bookId && t.status === 'Issued');
     if (!txn) return null;
     const member = members.find(m => m._id === txn.memberId);
-    return member ? member.name : "Unknown";
+    return member ? member.name : "Unknown Member";
   };
 
   // --- 2. QR CODE DOWNLOADER ---
