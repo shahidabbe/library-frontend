@@ -14,7 +14,8 @@ export default function App() {
   
   const [displayedBooks, setDisplayedBooks] = useState([]);
   const [displayedMembers, setDisplayedMembers] = useState([]);
-
+  const [limit, setLimit] = useState(30); // Limit visible books to 30
+  const [memLimit, setMemLimit] = useState(20);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -186,11 +187,12 @@ export default function App() {
     alert(`Showing ${result.length} Issued Books`);
   };
 
-  const showAllBooks = () => { setDisplayedBooks(books); setAdminBookQuery(''); };
-  const showAllMembers = () => { setDisplayedMembers(members); setAdminMemberQuery(''); };
+ const showAllBooks = () => { setDisplayedBooks(books); setAdminBookQuery(''); setLimit(30); };
+  const showAllMembers = () => { setDisplayedMembers(members); setAdminMemberQuery(''); setMemLimit(20); };
 
   const handlePublicSearch = () => {
     if (!publicQuery) return alert("Type something.");
+    setLimit(30);
     const q = publicQuery.toLowerCase();
     const result = books.filter(b => searchMode === 'title' ? b.title.toLowerCase().includes(q) : b.author.toLowerCase().includes(q));
     if (result.length === 0) alert("No results.");
@@ -247,14 +249,29 @@ export default function App() {
           <button style={{...styles.btn, background:'#f57f17'}} onClick={handlePublicSearch}>SEARCH</button>
           <button style={{...styles.btn, background:'#555', marginLeft:'5px'}} onClick={showAllBooks}>RESET</button>
           
-          {displayedBooks.map(b => (
-            <div key={b._id} style={styles.card}>
-              <div><strong>{b.title}</strong> by {b.author}<br/><small>Shelf: {b.shelfNumber} | Vol: {b.volume} | Cat: {b.category}</small></div>
-              <div style={{color: b.copies>0?'green':'red', fontWeight:'bold'}}>{b.copies>0?'AVAILABLE':'OUT OF STOCK'}</div>
-            </div>
-          ))}
-        </div>
-      )}
+  {displayedMembers.slice(0, memLimit).map(m => (
+  <div key={m._id} style={styles.card}>
+     <div>
+        <strong>{m.name}</strong><br/>
+        S/o {m.fatherName}<br/>
+        R/o: {m.address}<br/>
+        Phone: {m.phone}<br/>
+        <small>ID: {m._id}</small>
+     </div>
+     <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
+         <QRCodeCanvas id={`qr-${m._id}`} value={m._id} size={300} level={"H"} includeMargin={true} style={{width: '60px', height: '60px'}} />
+         <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Label</button>
+         <button style={styles.delBtn} onClick={() => deleteMember(m._id)}>Delete</button>
+     </div>
+  </div>
+))}
+{displayedMembers.length > memLimit && (
+  <button style={{...styles.btn, background:'#555', width:'100%', marginTop:'10px'}} onClick={() => setMemLimit(memLimit + 20)}>SHOW MORE MEMBERS ▼</button>
+)}
+{memLimit > 20 && (
+  <button style={{...styles.btn, background:'#888', width:'100%', marginTop:'5px'}} onClick={() => setMemLimit(20)}>SHOW LESS ▲</button>
+)}
+
 
       {/* LOGIN VIEW */}
       {view === 'login' && (
