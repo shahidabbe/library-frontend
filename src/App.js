@@ -3,9 +3,11 @@ import axios from 'axios';
 import { QRCodeCanvas } from 'qrcode.react'; 
 import logo from './logo.jpg'; 
 
+// --- BACKEND CONNECTION ---
 const BASE_URL = "https://library-backend-ac53.onrender.com"; 
 
 export default function App() {
+  // --- STATE VARIABLES ---
   const [view, setView] = useState('public'); 
   const [books, setBooks] = useState([]);         
   const [members, setMembers] = useState([]);     
@@ -17,23 +19,30 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
+  // Forms
   const [newBook, setNewBook] = useState({ title: '', author: '', language: '', volume: '', section: '', category: '', shelfNumber: '', copies: 1 });
   const [newMember, setNewMember] = useState({ name: '', fatherName: '', address: '', email: '', phone: '' });
   
+  // Transaction
   const [transBookId, setTransBookId] = useState('');
   const [transMemberId, setTransMemberId] = useState('');
+
+  // Search
   const [publicQuery, setPublicQuery] = useState('');
   const [searchMode, setSearchMode] = useState('title'); 
   const [adminBookQuery, setAdminBookQuery] = useState('');
   const [adminMemberQuery, setAdminMemberQuery] = useState('');
 
+  // --- 1. LOAD DATA ON START ---
   useEffect(() => { refreshData(); }, []);
 
   const refreshData = async () => {
     try {
+      console.log("Loading Data...");
       let bRes = await axios.get(`${BASE_URL}/api/books`).catch(() => null);
       let mRes = await axios.get(`${BASE_URL}/api/members`).catch(() => null);
 
+      // Fallback if /api route fails
       if (!bRes) {
          bRes = await axios.get(`${BASE_URL}/books`);
          mRes = await axios.get(`${BASE_URL}/members`);
@@ -43,10 +52,102 @@ export default function App() {
       setMembers(mRes.data);
       setDisplayedBooks(bRes.data);   
       setDisplayedMembers(mRes.data); 
-    } catch (err) { console.error(err); }
+      console.log("Data Loaded!");
+    } catch (err) { console.error("Error loading data", err); }
   };
 
-  // --- ACTIONS ---
+  // --- 2. QR CODE DOWNLOADER (1 INCH / 25mm) ---
+  const downloadQR = (id, title) => {
+    const canvas = document.getElementById(`qr-${id}`);
+    if (canvas) {
+      // 300 Pixels at 300 DPI = Exactly 1 Inch (25mm)
+      // This is the Standard Library Size
+      const qrSize = 300; 
+      const padding = 20; 
+      const textSpace = 50; 
+      
+      const labelCanvas = document.createElement("canvas");
+      const ctx = labelCanvas.getContext("2d");
+      
+      labelCanvas.width = qrSize + (padding * 2);
+      labelCanvas.height = qrSize + (padding * 2) + textSpace;
+      
+      // White Background (Required for printing)
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
+      
+      // Draw QR
+      ctx.drawImage(canvas, padding, padding, qrSize, qrSize);
+      
+      // Draw Title Text
+      ctx.fillStyle = "#000000";
+      ctx.font = "bold 24px Arial"; 
+      ctx.textAlign = "center";
+      
+      const cleanTitle = title.length > 18 ? title.substring(0, 18) + "..." : title;
+      ctx.fillText(cleanTitle, labelCanvas.width / 2, qrSize + padding + 35);
+      
+      // Download
+      const pngUrl = labelCanvas.toDataURL("image/png");
+      let downloadLink = document.createElement("a");
+      downloadLink.href = pngUrl;
+      downloadLink.download = `${cleanTitle}_Label.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
+  };
+
+  // --- 3. ACTIONS (Add, Delete, Issue) ---
+
+  const addBook = async () => {
+    if (!newBook.title) return alert("Title Required");
+    try { await axios.post(`${BASE_URL}/api/books`, newBook); } 
+    catch (e) { await axios.post(`${BASE_URL}/books`, newBook); }
+    alert("Book Saved!"); 
+    setNewBook({ title: '', author: '', language: '', volume: '', section: '', category: '', shelfNumber: '', copies: 1 });
+    refreshData();
+  };
+
+  const deleteBook = async (id) => {
+    if(!window.confirm("Delete this book?")) return;
+    try { await axios.delete(`${BASE_URL}/api/books/${id}`); }
+    catch(e) { await axios.delete(`${BASE_URL}/books/${id}`); }
+    refreshData();
+  };
+
+  const addMember = async () => {
+    if (!newMember.name) return alert("Name Required");
+    try { await axios.post(`${BASE_URL}/api/members`, newMember); } 
+    catch (e) { await axios.post(`${BASE_URL}/members`, newMember); }
+    alert("Member Saved!"); 
+    setNewMember({ name: '', fatherName: '', address: '', email: '', phone: '' });
+    refreshData();
+  };
+
+  const deleteMember = async (id) => {
+    if(!window.confirm("Delete this member?")) return;
+    try { await axios.delete(`${BASE_URL}/api/members/${id}`); }
+    catch(e) { await axios.delete(`${BASE_URL}/members/${id}`); }
+    refreshData();
+  };
+
+  const issueBook = async () => {
+    if (!transBookId || !transMemberId) return alert("Enter IDs");
+    try { await axios.post(`${BASE_URL}/api/transactions/issue`, { bookId: transBookId, memberId: transMemberId }); }
+    catch(e) { await axios.post(`${BASE_URL}/transactions/issue`, { bookId: transBookId, memberId: transMemberId }); }
+    alert("✅ Issued!"); refreshData();
+  };
+
+  const returnBook = async () => {
+    if (!transBookId || !transMemberId) return alert("Enter IDs");
+    try { await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId, memberId: transMemberId }); }
+    catch(e) { await axios.post(`${BASE_URL}/transactions/return`, { bookId: transBookId, memberId: transMemberId }); }
+    alert("✅ Returned!"); refreshData();
+  };
+
+  // --- 4. FILTERS ---
+
   const handleAdminBookFilter = () => {
     if (!adminBookQuery) return setDisplayedBooks(books);
     const q = adminBookQuery.toLowerCase();
@@ -87,69 +188,7 @@ export default function App() {
 
   const handleLogout = () => { setIsAdmin(false); setView('public'); showAllBooks(); };
 
-  // --- ADD / DELETE / DOWNLOAD ---
-
-  const addBook = async () => {
-    if (!newBook.title) return alert("Title Required");
-    try { await axios.post(`${BASE_URL}/api/books`, newBook); } 
-    catch (e) { await axios.post(`${BASE_URL}/books`, newBook); }
-    alert("Book Saved!"); 
-    setNewBook({ title: '', author: '', language: '', volume: '', section: '', category: '', shelfNumber: '', copies: 1 });
-    refreshData();
-  };
-
-  const deleteBook = async (id) => {
-    if(!window.confirm("Are you sure you want to delete this book?")) return;
-    try { await axios.delete(`${BASE_URL}/api/books/${id}`); }
-    catch(e) { await axios.delete(`${BASE_URL}/books/${id}`); }
-    refreshData();
-  };
-
-  const addMember = async () => {
-    if (!newMember.name) return alert("Name Required");
-    try { await axios.post(`${BASE_URL}/api/members`, newMember); } 
-    catch (e) { await axios.post(`${BASE_URL}/members`, newMember); }
-    alert("Member Saved!"); 
-    setNewMember({ name: '', fatherName: '', address: '', email: '', phone: '' });
-    refreshData();
-  };
-
-  const deleteMember = async (id) => {
-    if(!window.confirm("Are you sure you want to delete this member?")) return;
-    try { await axios.delete(`${BASE_URL}/api/members/${id}`); }
-    catch(e) { await axios.delete(`${BASE_URL}/members/${id}`); }
-    refreshData();
-  };
-
-  // --- QR DOWNLOADER ---
-  const downloadQR = (id, name) => {
-    const canvas = document.getElementById(`qr-${id}`);
-    if(canvas) {
-      const pngUrl = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
-      let downloadLink = document.createElement("a");
-      downloadLink.href = pngUrl;
-      downloadLink.download = `${name}_QR.png`;
-      document.body.appendChild(downloadLink);
-      downloadLink.click();
-      document.body.removeChild(downloadLink);
-    }
-  };
-
-  // --- TRANSACTION ---
-  const issueBook = async () => {
-    if (!transBookId || !transMemberId) return alert("Enter IDs");
-    try { await axios.post(`${BASE_URL}/api/transactions/issue`, { bookId: transBookId, memberId: transMemberId }); }
-    catch(e) { await axios.post(`${BASE_URL}/transactions/issue`, { bookId: transBookId, memberId: transMemberId }); }
-    alert("✅ Issued!"); refreshData();
-  };
-
-  const returnBook = async () => {
-    if (!transBookId || !transMemberId) return alert("Enter IDs");
-    try { await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId, memberId: transMemberId }); }
-    catch(e) { await axios.post(`${BASE_URL}/transactions/return`, { bookId: transBookId, memberId: transMemberId }); }
-    alert("✅ Returned!"); refreshData();
-  };
-
+  // --- STYLES ---
   const styles = {
     container: { maxWidth: '1200px', margin: 'auto', padding: '20px', fontFamily: 'Arial, sans-serif' },
     header: { background: '#1b5e20', color: '#ffd700', padding: '20px', textAlign: 'center', borderRadius: '8px', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'center' },
@@ -165,17 +204,20 @@ export default function App() {
 
   return (
     <div style={styles.container}>
+      {/* HEADER */}
       <header style={styles.header}>
         <img src={logo} alt="Logo" style={styles.logo} />
         <div><h1 style={{margin:0}}>IMAM ZAMAN (a.s) ISLAMIC LIBRARY</h1><p style={{margin:0, opacity:0.8}}>Knowledge is Life</p></div>
       </header>
 
+      {/* NAV */}
       <div style={styles.nav}>
         <button style={styles.btn} onClick={() => setView('public')}>Public Search</button>
         {!isAdmin ? <button style={{...styles.btn, background:'#0d47a1'}} onClick={() => setView('login')}>Admin Login</button> : 
         <><button style={{...styles.btn, background:'#1b5e20'}} onClick={() => setView('admin')}>Dashboard</button><button style={{...styles.btn, background:'#c62828'}} onClick={handleLogout}>Logout</button></>}
       </div>
 
+      {/* PUBLIC VIEW */}
       {view === 'public' && (
         <div style={{...styles.filterBox, background: '#fff', border:'1px solid #ddd'}}>
           <h2 style={{color:'#1b5e20'}}>🔍 Search Catalog</h2>
@@ -196,6 +238,7 @@ export default function App() {
         </div>
       )}
 
+      {/* LOGIN VIEW */}
       {view === 'login' && (
         <div style={{textAlign:'center', marginTop:'50px'}}>
            <h2>🔐 Login</h2>
@@ -207,8 +250,10 @@ export default function App() {
         </div>
       )}
 
+      {/* ADMIN DASHBOARD */}
       {view === 'admin' && (
         <div>
+           {/* 1. TRANSACTION */}
            <div style={{...styles.filterBox, border:'2px solid gold'}}>
               <h3>⚡ Quick Transaction</h3>
               <input style={styles.input} placeholder="Book ID" value={transBookId} onChange={e=>setTransBookId(e.target.value)} />
@@ -217,13 +262,14 @@ export default function App() {
               <button style={{...styles.btn, background:'orange', marginLeft:'5px'}} onClick={returnBook}>RETURN</button>
            </div>
 
+           {/* 2. MANAGE BOOKS */}
            <div style={styles.filterBox}>
               <h3>📚 Manage Books</h3>
               <div style={{display:'flex', flexWrap:'wrap', gap:'5px', marginBottom:'15px'}}>
                 <input style={styles.input} placeholder="Title" value={newBook.title} onChange={e=>setNewBook({...newBook, title:e.target.value})}/>
                 <input style={styles.input} placeholder="Author" value={newBook.author} onChange={e=>setNewBook({...newBook, author:e.target.value})}/>
                 <input style={styles.input} placeholder="Lang" value={newBook.language} onChange={e=>setNewBook({...newBook, language:e.target.value})}/>
-                <input style={styles.input} placeholder="Volume" value={newBook.volume} onChange={e=>setNewBook({...newBook, volume:e.target.value})}/>
+                <input style={styles.input} placeholder="Vol" value={newBook.volume} onChange={e=>setNewBook({...newBook, volume:e.target.value})}/>
                 <input style={styles.input} placeholder="Shelf" value={newBook.shelfNumber} onChange={e=>setNewBook({...newBook, shelfNumber:e.target.value})}/>
                 <input style={styles.input} placeholder="Section" value={newBook.section} onChange={e=>setNewBook({...newBook, section:e.target.value})}/>
                 <input style={styles.input} placeholder="Cat" value={newBook.category} onChange={e=>setNewBook({...newBook, category:e.target.value})}/>
@@ -247,14 +293,23 @@ export default function App() {
                        <small>ID: {b._id}</small>
                    </div>
                    <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                       <QRCodeCanvas id={`qr-${b._id}`} value={b._id} size={60} />
-                       <button style={styles.downBtn} onClick={() => downloadQR(b._id, b.title)}>Download QR</button>
+                       {/* High Quality Source Canvas */}
+                       <QRCodeCanvas 
+                            id={`qr-${b._id}`} 
+                            value={b._id} 
+                            size={300} 
+                            level={"H"} 
+                            includeMargin={true}
+                            style={{width: '60px', height: '60px'}} 
+                       />
+                       <button style={styles.downBtn} onClick={() => downloadQR(b._id, b.title)}>Label</button>
                        <button style={styles.delBtn} onClick={() => deleteBook(b._id)}>Delete</button>
                    </div>
                 </div>
               ))}
            </div>
 
+           {/* 3. MANAGE MEMBERS */}
            <div style={styles.filterBox}>
               <h3>👥 Manage Members</h3>
               <div style={{display:'flex', flexWrap:'wrap', gap:'5px', marginBottom:'15px'}}>
@@ -275,8 +330,15 @@ export default function App() {
                 <div key={m._id} style={styles.card}>
                    <div><strong>{m.name}</strong><br/>S/o {m.fatherName} | {m.phone}<br/><small>ID: {m._id}</small></div>
                    <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                       <QRCodeCanvas id={`qr-${m._id}`} value={m._id} size={60} />
-                       <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Download QR</button>
+                       <QRCodeCanvas 
+                            id={`qr-${m._id}`} 
+                            value={m._id} 
+                            size={300} 
+                            level={"H"} 
+                            includeMargin={true}
+                            style={{width: '60px', height: '60px'}} 
+                       />
+                       <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Label</button>
                        <button style={styles.delBtn} onClick={() => deleteMember(m._id)}>Delete</button>
                    </div>
                 </div>
