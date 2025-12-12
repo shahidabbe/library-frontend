@@ -139,12 +139,30 @@ export default function App() {
     alert("✅ Issued!"); refreshData();
   };
 
-  const returnBook = async () => {
-    if (!transBookId || !transMemberId) return alert("Enter IDs");
-    try { await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId, memberId: transMemberId }); }
-    catch(e) { await axios.post(`${BASE_URL}/transactions/return`, { bookId: transBookId, memberId: transMemberId }); }
-    alert("✅ Returned!"); refreshData();
+   const returnBook = async () => {
+    if (!transBookId) return alert("Please Scan Book ID"); // Removed member ID check
+    
+    try { 
+        // We only send bookId now
+        await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId }); 
+        alert("✅ Returned!"); 
+        setTransBookId(''); 
+        setTransMemberId(''); 
+        refreshData();
+    }
+    catch(e) { 
+        // Fallback for older backend path if needed
+        try { 
+            await axios.post(`${BASE_URL}/transactions/return`, { bookId: transBookId }); 
+            alert("✅ Returned!"); 
+            setTransBookId('');
+            setTransMemberId('');
+            refreshData(); 
+        }
+        catch(err) { alert("Error: Book not found or not currently issued."); }
+    }
   };
+
 
   // --- 4. FILTERS ---
 
