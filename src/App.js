@@ -14,8 +14,9 @@ export default function App() {
   
   const [displayedBooks, setDisplayedBooks] = useState([]);
   const [displayedMembers, setDisplayedMembers] = useState([]);
-  const [limit, setLimit] = useState(30); // Limit visible books to 30
-  const [memLimit, setMemLimit] = useState(20);
+  const [limit, setLimit] = useState(30);       // Limit visible books
+  const [memLimit, setMemLimit] = useState(20); // Limit visible members
+  
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -43,7 +44,6 @@ export default function App() {
       let bRes = await axios.get(`${BASE_URL}/api/books`).catch(() => null);
       let mRes = await axios.get(`${BASE_URL}/api/members`).catch(() => null);
 
-      // Fallback if /api route fails
       if (!bRes) {
          bRes = await axios.get(`${BASE_URL}/books`);
          mRes = await axios.get(`${BASE_URL}/members`);
@@ -57,12 +57,10 @@ export default function App() {
     } catch (err) { console.error("Error loading data", err); }
   };
 
-  // --- 2. QR CODE DOWNLOADER (1 INCH / 25mm) ---
+  // --- 2. QR CODE DOWNLOADER ---
   const downloadQR = (id, title) => {
     const canvas = document.getElementById(`qr-${id}`);
     if (canvas) {
-      // 300 Pixels at 300 DPI = Exactly 1 Inch (25mm)
-      // This is the Standard Library Size
       const qrSize = 300; 
       const padding = 20; 
       const textSpace = 50; 
@@ -73,14 +71,11 @@ export default function App() {
       labelCanvas.width = qrSize + (padding * 2);
       labelCanvas.height = qrSize + (padding * 2) + textSpace;
       
-      // White Background (Required for printing)
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
       
-      // Draw QR
       ctx.drawImage(canvas, padding, padding, qrSize, qrSize);
       
-      // Draw Title Text
       ctx.fillStyle = "#000000";
       ctx.font = "bold 24px Arial"; 
       ctx.textAlign = "center";
@@ -88,7 +83,6 @@ export default function App() {
       const cleanTitle = title.length > 18 ? title.substring(0, 18) + "..." : title;
       ctx.fillText(cleanTitle, labelCanvas.width / 2, qrSize + padding + 35);
       
-      // Download
       const pngUrl = labelCanvas.toDataURL("image/png");
       let downloadLink = document.createElement("a");
       downloadLink.href = pngUrl;
@@ -99,7 +93,7 @@ export default function App() {
     }
   };
 
-  // --- 3. ACTIONS (Add, Delete, Issue) ---
+  // --- 3. ACTIONS ---
 
   const addBook = async () => {
     if (!newBook.title) return alert("Title Required");
@@ -115,6 +109,19 @@ export default function App() {
     try { await axios.delete(`${BASE_URL}/api/books/${id}`); }
     catch(e) { await axios.delete(`${BASE_URL}/books/${id}`); }
     refreshData();
+  };
+
+  // NEW EDIT BOOK FUNCTION
+  const editBook = async (b) => {
+    const newTitle = prompt("Edit Title:", b.title);
+    const newAuthor = prompt("Edit Author:", b.author);
+    if (newTitle !== null && newAuthor !== null) {
+       try {
+         await axios.put(`${BASE_URL}/api/books/${b._id}`, { ...b, title: newTitle, author: newAuthor });
+         alert("✅ Book Updated!");
+         refreshData();
+       } catch(e) { alert("Error updating book"); }
+    }
   };
 
   const addMember = async () => {
@@ -133,6 +140,19 @@ export default function App() {
     refreshData();
   };
 
+  // NEW EDIT MEMBER FUNCTION
+  const editMember = async (m) => {
+     const newName = prompt("Edit Name:", m.name);
+     const newPhone = prompt("Edit Phone:", m.phone);
+     if (newName !== null && newPhone !== null) {
+        try {
+          await axios.put(`${BASE_URL}/api/members/${m._id}`, { ...m, name: newName, phone: newPhone });
+          alert("✅ Member Updated!");
+          refreshData();
+        } catch(e) { alert("Error updating member"); }
+     }
+  };
+
   const issueBook = async () => {
     if (!transBookId || !transMemberId) return alert("Enter IDs");
     try { await axios.post(`${BASE_URL}/api/transactions/issue`, { bookId: transBookId, memberId: transMemberId }); }
@@ -140,30 +160,24 @@ export default function App() {
     alert("✅ Issued!"); refreshData();
   };
 
-   const returnBook = async () => {
-    if (!transBookId) return alert("Please Scan Book ID"); // Removed member ID check
-    
+  const returnBook = async () => {
+    if (!transBookId) return alert("Please Scan Book ID");
     try { 
-        // We only send bookId now
-        await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId }); 
-        alert("✅ Returned!"); 
+        const res = await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId }); 
+        
+        // SHOW FINE ALERT
+        if (res.data.fine > 0) {
+            alert(`✅ RETURNED!\n\n⚠️ LATE FINE: ₹${res.data.fine}`);
+        } else {
+            alert("✅ Returned Successfully! (No Fine)");
+        }
+
         setTransBookId(''); 
         setTransMemberId(''); 
         refreshData();
     }
-    catch(e) { 
-        // Fallback for older backend path if needed
-        try { 
-            await axios.post(`${BASE_URL}/transactions/return`, { bookId: transBookId }); 
-            alert("✅ Returned!"); 
-            setTransBookId('');
-            setTransMemberId('');
-            refreshData(); 
-        }
-        catch(err) { alert("Error: Book not found or not currently issued."); }
-    }
+    catch(e) { alert("Error: Book not found or not currently issued."); }
   };
-
 
   // --- 4. FILTERS ---
 
@@ -176,6 +190,7 @@ export default function App() {
 
   const handleAdminMemberFilter = () => {
     if (!adminMemberQuery) return setDisplayedMembers(members);
+    setMemLimit(20);
     const q = adminMemberQuery.toLowerCase();
     const result = members.filter(m => Object.values(m).some(val => String(val).toLowerCase().includes(q)));
     setDisplayedMembers(result);
@@ -187,7 +202,7 @@ export default function App() {
     alert(`Showing ${result.length} Issued Books`);
   };
 
- const showAllBooks = () => { setDisplayedBooks(books); setAdminBookQuery(''); setLimit(30); };
+  const showAllBooks = () => { setDisplayedBooks(books); setAdminBookQuery(''); setLimit(30); };
   const showAllMembers = () => { setDisplayedMembers(members); setAdminMemberQuery(''); setMemLimit(20); };
 
   const handlePublicSearch = () => {
@@ -249,29 +264,20 @@ export default function App() {
           <button style={{...styles.btn, background:'#f57f17'}} onClick={handlePublicSearch}>SEARCH</button>
           <button style={{...styles.btn, background:'#555', marginLeft:'5px'}} onClick={showAllBooks}>RESET</button>
           
-  {displayedMembers.slice(0, memLimit).map(m => (
-  <div key={m._id} style={styles.card}>
-     <div>
-        <strong>{m.name}</strong><br/>
-        S/o {m.fatherName}<br/>
-        R/o: {m.address}<br/>
-        Phone: {m.phone}<br/>
-        <small>ID: {m._id}</small>
-     </div>
-     <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-         <QRCodeCanvas id={`qr-${m._id}`} value={m._id} size={300} level={"H"} includeMargin={true} style={{width: '60px', height: '60px'}} />
-         <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Label</button>
-         <button style={styles.delBtn} onClick={() => deleteMember(m._id)}>Delete</button>
-     </div>
-  </div>
-))}
-{displayedMembers.length > memLimit && (
-  <button style={{...styles.btn, background:'#555', width:'100%', marginTop:'10px'}} onClick={() => setMemLimit(memLimit + 20)}>SHOW MORE MEMBERS ▼</button>
-)}
-{memLimit > 20 && (
-  <button style={{...styles.btn, background:'#888', width:'100%', marginTop:'5px'}} onClick={() => setMemLimit(20)}>SHOW LESS ▲</button>
-)}
-
+          {displayedBooks.slice(0, limit).map(b => (
+            <div key={b._id} style={styles.card}>
+              <div><strong>{b.title}</strong> by {b.author}<br/><small>Shelf: {b.shelfNumber} | Vol: {b.volume} | Cat: {b.category}</small></div>
+              <div style={{color: b.copies>0?'green':'red', fontWeight:'bold'}}>{b.copies>0?'AVAILABLE':'OUT OF STOCK'}</div>
+            </div>
+          ))}
+          {displayedBooks.length > limit && (
+            <button style={{...styles.btn, background:'#555', width:'100%', marginTop:'10px'}} onClick={() => setLimit(limit + 30)}>SHOW MORE BOOKS ▼</button>
+          )}
+          {limit > 30 && (
+             <button style={{...styles.btn, background:'#888', width:'100%', marginTop:'5px'}} onClick={() => setLimit(30)}>SHOW LESS ▲</button>
+          )}
+        </div>
+      )}
 
       {/* LOGIN VIEW */}
       {view === 'login' && (
@@ -320,7 +326,7 @@ export default function App() {
                  <button style={{...styles.btn, background:'#d81b60', marginLeft:'5px'}} onClick={showIssuedBooks}>SHOW ISSUED ONLY</button>
               </div>
 
-              {displayedBooks.map(b => (
+              {displayedBooks.slice(0, limit).map(b => (
                 <div key={b._id} style={styles.card}>
                    <div>
                        <strong>{b.title}</strong> <small>({b.language})</small><br/>
@@ -328,7 +334,6 @@ export default function App() {
                        <small>ID: {b._id}</small>
                    </div>
                    <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                       {/* High Quality Source Canvas */}
                        <QRCodeCanvas 
                             id={`qr-${b._id}`} 
                             value={b._id} 
@@ -338,23 +343,29 @@ export default function App() {
                             style={{width: '60px', height: '60px'}} 
                        />
                        <button style={styles.downBtn} onClick={() => downloadQR(b._id, b.title)}>Label</button>
+                       <button style={{...styles.btn, background:'#fbc02d', color:'black', padding:'5px 10px', marginTop:'5px'}} onClick={() => editBook(b)}>Edit</button>
                        <button style={styles.delBtn} onClick={() => deleteBook(b._id)}>Delete</button>
                    </div>
                 </div>
               ))}
+              {displayedBooks.length > limit && (
+                <button style={{...styles.btn, background:'#555', width:'100%', marginTop:'10px'}} onClick={() => setLimit(limit + 30)}>SHOW MORE BOOKS ▼</button>
+              )}
+              {limit > 30 && (
+                <button style={{...styles.btn, background:'#888', width:'100%', marginTop:'5px'}} onClick={() => setLimit(30)}>SHOW LESS ▲</button>
+              )}
            </div>
 
            {/* 3. MANAGE MEMBERS */}
            <div style={styles.filterBox}>
               <h3>👥 Manage Members</h3>
-            <div style={{display:'flex', flexWrap:'wrap', gap:'5px', marginBottom:'15px'}}>
-   <input style={styles.input} placeholder="Name" value={newMember.name} onChange={e=>setNewMember({...newMember, name:e.target.value})}/>
-   <input style={styles.input} placeholder="Father Name" value={newMember.fatherName} onChange={e=>setNewMember({...newMember, fatherName:e.target.value})}/>
-   <input style={styles.input} placeholder="R/o (Address)" value={newMember.address} onChange={e=>setNewMember({...newMember, address:e.target.value})}/>
-   <input style={styles.input} placeholder="Phone" value={newMember.phone} onChange={e=>setNewMember({...newMember, phone:e.target.value})}/>
-   <button style={styles.btn} onClick={addMember}>+ ADD</button>
-</div>
-
+              <div style={{display:'flex', flexWrap:'wrap', gap:'5px', marginBottom:'15px'}}>
+                 <input style={styles.input} placeholder="Name" value={newMember.name} onChange={e=>setNewMember({...newMember, name:e.target.value})}/>
+                 <input style={styles.input} placeholder="Father Name" value={newMember.fatherName} onChange={e=>setNewMember({...newMember, fatherName:e.target.value})}/>
+                 <input style={styles.input} placeholder="R/o (Address)" value={newMember.address} onChange={e=>setNewMember({...newMember, address:e.target.value})}/>
+                 <input style={styles.input} placeholder="Phone" value={newMember.phone} onChange={e=>setNewMember({...newMember, phone:e.target.value})}/>
+                 <button style={styles.btn} onClick={addMember}>+ ADD</button>
+              </div>
 
               <div style={{background:'#fff', padding:'10px', borderRadius:'5px'}}>
                  <strong>Filter By: </strong>
@@ -363,9 +374,15 @@ export default function App() {
                  <button style={{...styles.btn, background:'#555', marginLeft:'5px'}} onClick={showAllMembers}>SHOW ALL</button>
               </div>
 
-              {displayedMembers.map(m => (
+              {displayedMembers.slice(0, memLimit).map(m => (
                 <div key={m._id} style={styles.card}>
-                   <div><strong>{m.name}</strong><br/>S/o {m.fatherName} | {m.phone}<br/><small>ID: {m._id}</small></div>
+                   <div>
+                       <strong>{m.name}</strong><br/>
+                       S/o {m.fatherName}<br/>
+                       R/o: {m.address}<br/>
+                       Phone: {m.phone}<br/>
+                       <small>ID: {m._id}</small>
+                   </div>
                    <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
                        <QRCodeCanvas 
                             id={`qr-${m._id}`} 
@@ -376,10 +393,17 @@ export default function App() {
                             style={{width: '60px', height: '60px'}} 
                        />
                        <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Label</button>
+                       <button style={{...styles.btn, background:'#fbc02d', color:'black', padding:'5px 10px', marginTop:'5px'}} onClick={() => editMember(m)}>Edit</button>
                        <button style={styles.delBtn} onClick={() => deleteMember(m._id)}>Delete</button>
                    </div>
                 </div>
               ))}
+              {displayedMembers.length > memLimit && (
+                 <button style={{...styles.btn, background:'#555', width:'100%', marginTop:'10px'}} onClick={() => setMemLimit(memLimit + 20)}>SHOW MORE MEMBERS ▼</button>
+              )}
+              {memLimit > 20 && (
+                 <button style={{...styles.btn, background:'#888', width:'100%', marginTop:'5px'}} onClick={() => setMemLimit(20)}>SHOW LESS ▲</button>
+              )}
            </div>
         </div>
       )}
