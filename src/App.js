@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 
 // --- YOUR RENDER BACKEND URL ---
-const API = "https://library-backend-ac53.onrender.com/api"; 
-
+const API = "https://library-backend-ac53.onrender.com"; 
 export default function App() {
   const [books, setBooks] = useState([]);
   const [status, setStatus] = useState("Ready"); // Debug Status
