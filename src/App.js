@@ -17,6 +17,10 @@ export default function App() {
   const [limit, setLimit] = useState(30);       // Limit visible books
   const [memLimit, setMemLimit] = useState(20); // Limit visible members
   
+  // --- NEW: TRANSACTION HISTORY STATE ---
+  const [transactions, setTransactions] = useState([]); 
+  const [historyView, setHistoryView] = useState(null); // Stores ID of member being viewed
+
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -43,6 +47,7 @@ export default function App() {
       console.log("Loading Data...");
       let bRes = await axios.get(`${BASE_URL}/api/books`).catch(() => null);
       let mRes = await axios.get(`${BASE_URL}/api/members`).catch(() => null);
+      let tRes = await axios.get(`${BASE_URL}/api/transactions`).catch(() => null); // Load History
 
       if (!bRes) {
          bRes = await axios.get(`${BASE_URL}/books`);
@@ -51,10 +56,20 @@ export default function App() {
 
       setBooks(bRes.data);
       setMembers(mRes.data);
+      if(tRes) setTransactions(tRes.data);
+
       setDisplayedBooks(bRes.data);   
       setDisplayedMembers(mRes.data); 
       console.log("Data Loaded!");
     } catch (err) { console.error("Error loading data", err); }
+  };
+
+  // --- HELPER: Find who has a book ---
+  const getBookHolder = (bookId) => {
+    const txn = transactions.find(t => t.bookId === bookId && t.status === 'Issued');
+    if (!txn) return null;
+    const member = members.find(m => m._id === txn.memberId);
+    return member ? member.name : "Unknown";
   };
 
   // --- 2. QR CODE DOWNLOADER ---
@@ -111,7 +126,6 @@ export default function App() {
     refreshData();
   };
 
-  // NEW EDIT BOOK FUNCTION
   const editBook = async (b) => {
     const newTitle = prompt("Edit Title:", b.title);
     const newAuthor = prompt("Edit Author:", b.author);
@@ -140,7 +154,6 @@ export default function App() {
     refreshData();
   };
 
-  // NEW EDIT MEMBER FUNCTION
   const editMember = async (m) => {
      const newName = prompt("Edit Name:", m.name);
      const newPhone = prompt("Edit Phone:", m.phone);
@@ -164,14 +177,11 @@ export default function App() {
     if (!transBookId) return alert("Please Scan Book ID");
     try { 
         const res = await axios.post(`${BASE_URL}/api/transactions/return`, { bookId: transBookId }); 
-        
-        // SHOW FINE ALERT
         if (res.data.fine > 0) {
             alert(`✅ RETURNED!\n\n⚠️ LATE FINE: ₹${res.data.fine}`);
         } else {
             alert("✅ Returned Successfully! (No Fine)");
         }
-
         setTransBookId(''); 
         setTransMemberId(''); 
         refreshData();
@@ -332,16 +342,14 @@ export default function App() {
                        <strong>{b.title}</strong> <small>({b.language})</small><br/>
                        Shelf: {b.shelfNumber} | Vol: {b.volume} | Sec: {b.section}<br/>
                        <small>ID: {b._id}</small>
+                       {b.copies === 0 && (
+                          <div style={{color:'red', fontWeight:'bold', marginTop:'5px'}}>
+                              ⚠️ Issued To: {getBookHolder(b._id)}
+                          </div>
+                       )}
                    </div>
                    <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                       <QRCodeCanvas 
-                            id={`qr-${b._id}`} 
-                            value={b._id} 
-                            size={300} 
-                            level={"H"} 
-                            includeMargin={true}
-                            style={{width: '60px', height: '60px'}} 
-                       />
+                       <QRCodeCanvas id={`qr-${b._id}`} value={b._id} size={300} level={"H"} includeMargin={true} style={{width: '60px', height: '60px'}} />
                        <button style={styles.downBtn} onClick={() => downloadQR(b._id, b.title)}>Label</button>
                        <button style={{...styles.btn, background:'#fbc02d', color:'black', padding:'5px 10px', marginTop:'5px'}} onClick={() => editBook(b)}>Edit</button>
                        <button style={styles.delBtn} onClick={() => deleteBook(b._id)}>Delete</button>
@@ -384,15 +392,9 @@ export default function App() {
                        <small>ID: {m._id}</small>
                    </div>
                    <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
-                       <QRCodeCanvas 
-                            id={`qr-${m._id}`} 
-                            value={m._id} 
-                            size={300} 
-                            level={"H"} 
-                            includeMargin={true}
-                            style={{width: '60px', height: '60px'}} 
-                       />
+                       <QRCodeCanvas id={`qr-${m._id}`} value={m._id} size={300} level={"H"} includeMargin={true} style={{width: '60px', height: '60px'}} />
                        <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Label</button>
+                       <button style={{...styles.btn, background:'#0288d1', padding:'5px 10px', marginTop:'5px'}} onClick={() => setHistoryView(m._id)}>History</button>
                        <button style={{...styles.btn, background:'#fbc02d', color:'black', padding:'5px 10px', marginTop:'5px'}} onClick={() => editMember(m)}>Edit</button>
                        <button style={styles.delBtn} onClick={() => deleteMember(m._id)}>Delete</button>
                    </div>
@@ -405,6 +407,43 @@ export default function App() {
                  <button style={{...styles.btn, background:'#888', width:'100%', marginTop:'5px'}} onClick={() => setMemLimit(20)}>SHOW LESS ▲</button>
               )}
            </div>
+
+           {/* 4. HISTORY POPUP */}
+           {historyView && (
+             <div style={{position:'fixed', top:0, left:0, width:'100%', height:'100%', background:'rgba(0,0,0,0.8)', display:'flex', justifyContent:'center', alignItems:'center', zIndex:1000}}>
+                <div style={{background:'white', padding:'20px', borderRadius:'10px', width:'80%', maxHeight:'80%', overflowY:'auto'}}>
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px'}}>
+                        <h2>📜 History: {members.find(m=>m._id===historyView)?.name}</h2>
+                        <button style={{background:'red', color:'white', border:'none', padding:'10px', cursor:'pointer'}} onClick={()=>setHistoryView(null)}>CLOSE ✖</button>
+                    </div>
+                    
+                    <table style={{width:'100%', borderCollapse:'collapse'}}>
+                        <thead>
+                            <tr style={{background:'#eee', textAlign:'left'}}>
+                                <th style={{padding:'10px'}}>Book</th>
+                                <th style={{padding:'10px'}}>Issued On</th>
+                                <th style={{padding:'10px'}}>Returned On</th>
+                                <th style={{padding:'10px'}}>Status</th>
+                                <th style={{padding:'10px'}}>Fine</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {transactions.filter(t => t.memberId === historyView).map(t => (
+                                <tr key={t._id} style={{borderBottom:'1px solid #ddd'}}>
+                                    <td style={{padding:'10px'}}>{t.bookTitle}</td>
+                                    <td style={{padding:'10px'}}>{new Date(t.issueDate).toLocaleDateString()}</td>
+                                    <td style={{padding:'10px'}}>{t.returnDate ? new Date(t.returnDate).toLocaleDateString() : '-'}</td>
+                                    <td style={{padding:'10px', color: t.status==='Issued'?'red':'green', fontWeight:'bold'}}>{t.status}</td>
+                                    <td style={{padding:'10px'}}>₹{t.fine || 0}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                    {transactions.filter(t => t.memberId === historyView).length === 0 && <p style={{textAlign:'center', padding:'20px'}}>No history found.</p>}
+                </div>
+             </div>
+           )}
+
         </div>
       )}
     </div>
