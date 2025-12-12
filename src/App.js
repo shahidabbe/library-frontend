@@ -17,7 +17,6 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // ADDED 'section' BACK HERE
   const [newBook, setNewBook] = useState({ title: '', author: '', language: '', volume: '', section: '', category: '', shelfNumber: '', copies: 1 });
   const [newMember, setNewMember] = useState({ name: '', fatherName: '', address: '', email: '', phone: '' });
   
@@ -32,7 +31,6 @@ export default function App() {
 
   const refreshData = async () => {
     try {
-      console.log("Loading Data...");
       let bRes = await axios.get(`${BASE_URL}/api/books`).catch(() => null);
       let mRes = await axios.get(`${BASE_URL}/api/members`).catch(() => null);
 
@@ -45,14 +43,10 @@ export default function App() {
       setMembers(mRes.data);
       setDisplayedBooks(bRes.data);   
       setDisplayedMembers(mRes.data); 
-      console.log("Data Loaded!");
-
-    } catch (err) { 
-        console.error("LOAD ERROR:", err); 
-        alert("Could not load data. Check console.");
-    }
+    } catch (err) { console.error(err); }
   };
 
+  // --- ACTIONS ---
   const handleAdminBookFilter = () => {
     if (!adminBookQuery) return setDisplayedBooks(books);
     const q = adminBookQuery.toLowerCase();
@@ -93,30 +87,55 @@ export default function App() {
 
   const handleLogout = () => { setIsAdmin(false); setView('public'); showAllBooks(); };
 
+  // --- ADD / DELETE / DOWNLOAD ---
+
   const addBook = async () => {
     if (!newBook.title) return alert("Title Required");
-    try {
-        await axios.post(`${BASE_URL}/api/books`, newBook);
-    } catch (e) {
-        await axios.post(`${BASE_URL}/books`, newBook);
-    }
+    try { await axios.post(`${BASE_URL}/api/books`, newBook); } 
+    catch (e) { await axios.post(`${BASE_URL}/books`, newBook); }
     alert("Book Saved!"); 
     setNewBook({ title: '', author: '', language: '', volume: '', section: '', category: '', shelfNumber: '', copies: 1 });
     refreshData();
   };
 
+  const deleteBook = async (id) => {
+    if(!window.confirm("Are you sure you want to delete this book?")) return;
+    try { await axios.delete(`${BASE_URL}/api/books/${id}`); }
+    catch(e) { await axios.delete(`${BASE_URL}/books/${id}`); }
+    refreshData();
+  };
+
   const addMember = async () => {
     if (!newMember.name) return alert("Name Required");
-    try {
-        await axios.post(`${BASE_URL}/api/members`, newMember);
-    } catch (e) {
-        await axios.post(`${BASE_URL}/members`, newMember);
-    }
+    try { await axios.post(`${BASE_URL}/api/members`, newMember); } 
+    catch (e) { await axios.post(`${BASE_URL}/members`, newMember); }
     alert("Member Saved!"); 
     setNewMember({ name: '', fatherName: '', address: '', email: '', phone: '' });
     refreshData();
   };
 
+  const deleteMember = async (id) => {
+    if(!window.confirm("Are you sure you want to delete this member?")) return;
+    try { await axios.delete(`${BASE_URL}/api/members/${id}`); }
+    catch(e) { await axios.delete(`${BASE_URL}/members/${id}`); }
+    refreshData();
+  };
+
+  // --- QR DOWNLOADER ---
+  const downloadQR = (id, name) => {
+    const canvas = document.getElementById(`qr-${id}`);
+    if(canvas) {
+      const pngUrl = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+      let downloadLink = document.createElement("a");
+      downloadLink.href = pngUrl;
+      downloadLink.download = `${name}_QR.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    }
+  };
+
+  // --- TRANSACTION ---
   const issueBook = async () => {
     if (!transBookId || !transMemberId) return alert("Enter IDs");
     try { await axios.post(`${BASE_URL}/api/transactions/issue`, { bookId: transBookId, memberId: transMemberId }); }
@@ -137,6 +156,8 @@ export default function App() {
     logo: { height: '80px', borderRadius: '50%', border: '3px solid #ffd700' },
     nav: { display: 'flex', gap: '10px', justifyContent: 'center', margin: '20px 0' },
     btn: { padding: '10px 15px', cursor: 'pointer', background: '#2e7d32', color: 'white', border: '1px solid gold', borderRadius: '5px' },
+    delBtn: { padding: '5px 10px', cursor: 'pointer', background: '#c62828', color: 'white', border: 'none', borderRadius: '3px', marginTop: '5px' },
+    downBtn: { padding: '5px 10px', cursor: 'pointer', background: '#0277bd', color: 'white', border: 'none', borderRadius: '3px', marginTop: '5px' },
     filterBox: { background: '#dcedc8', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #c5e1a5' },
     input: { padding: '8px', margin: '5px', borderRadius: '4px', border: '1px solid #ccc' },
     card: { background: 'white', padding: '15px', margin: '10px 0', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }
@@ -168,7 +189,7 @@ export default function App() {
           
           {displayedBooks.map(b => (
             <div key={b._id} style={styles.card}>
-              <div><strong>{b.title}</strong> by {b.author}<br/><small>Shelf: {b.shelfNumber} | Cat: {b.category}</small></div>
+              <div><strong>{b.title}</strong> by {b.author}<br/><small>Shelf: {b.shelfNumber} | Vol: {b.volume} | Cat: {b.category}</small></div>
               <div style={{color: b.copies>0?'green':'red', fontWeight:'bold'}}>{b.copies>0?'AVAILABLE':'OUT OF STOCK'}</div>
             </div>
           ))}
@@ -202,8 +223,8 @@ export default function App() {
                 <input style={styles.input} placeholder="Title" value={newBook.title} onChange={e=>setNewBook({...newBook, title:e.target.value})}/>
                 <input style={styles.input} placeholder="Author" value={newBook.author} onChange={e=>setNewBook({...newBook, author:e.target.value})}/>
                 <input style={styles.input} placeholder="Lang" value={newBook.language} onChange={e=>setNewBook({...newBook, language:e.target.value})}/>
+                <input style={styles.input} placeholder="Volume" value={newBook.volume} onChange={e=>setNewBook({...newBook, volume:e.target.value})}/>
                 <input style={styles.input} placeholder="Shelf" value={newBook.shelfNumber} onChange={e=>setNewBook({...newBook, shelfNumber:e.target.value})}/>
-                {/* ADDED SECTION INPUT HERE */}
                 <input style={styles.input} placeholder="Section" value={newBook.section} onChange={e=>setNewBook({...newBook, section:e.target.value})}/>
                 <input style={styles.input} placeholder="Cat" value={newBook.category} onChange={e=>setNewBook({...newBook, category:e.target.value})}/>
                 <input type="number" style={{...styles.input, width:'60px'}} placeholder="Qty" value={newBook.copies} onChange={e=>setNewBook({...newBook, copies:e.target.value})}/>
@@ -212,7 +233,7 @@ export default function App() {
 
               <div style={{background:'#fff', padding:'10px', borderRadius:'5px'}}>
                  <strong>Filter By: </strong>
-                 <input style={{...styles.input, width:'40%'}} placeholder="Any (Shelf, Author, Title...)" value={adminBookQuery} onChange={e=>setAdminBookQuery(e.target.value)} />
+                 <input style={{...styles.input, width:'40%'}} placeholder="Any..." value={adminBookQuery} onChange={e=>setAdminBookQuery(e.target.value)} />
                  <button style={{...styles.btn, background:'#f57f17'}} onClick={handleAdminBookFilter}>FILTER</button>
                  <button style={{...styles.btn, background:'#555', marginLeft:'5px'}} onClick={showAllBooks}>SHOW ALL</button>
                  <button style={{...styles.btn, background:'#d81b60', marginLeft:'5px'}} onClick={showIssuedBooks}>SHOW ISSUED ONLY</button>
@@ -220,9 +241,16 @@ export default function App() {
 
               {displayedBooks.map(b => (
                 <div key={b._id} style={styles.card}>
-                   <div><strong>{b.title}</strong><br/>Shelf: {b.shelfNumber} | Section: {b.section}<br/><small>ID: {b._id}</small></div>
-                   {/* QR CODE IS HERE */}
-                   <div style={{textAlign:'center'}}><QRCodeCanvas value={b._id} size={50}/><br/><small>Scan</small></div>
+                   <div>
+                       <strong>{b.title}</strong> <small>({b.language})</small><br/>
+                       Shelf: {b.shelfNumber} | Vol: {b.volume} | Sec: {b.section}<br/>
+                       <small>ID: {b._id}</small>
+                   </div>
+                   <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
+                       <QRCodeCanvas id={`qr-${b._id}`} value={b._id} size={60} />
+                       <button style={styles.downBtn} onClick={() => downloadQR(b._id, b.title)}>Download QR</button>
+                       <button style={styles.delBtn} onClick={() => deleteBook(b._id)}>Delete</button>
+                   </div>
                 </div>
               ))}
            </div>
@@ -246,7 +274,11 @@ export default function App() {
               {displayedMembers.map(m => (
                 <div key={m._id} style={styles.card}>
                    <div><strong>{m.name}</strong><br/>S/o {m.fatherName} | {m.phone}<br/><small>ID: {m._id}</small></div>
-                   <div style={{textAlign:'center'}}><QRCodeCanvas value={m._id} size={50}/><br/><small>Scan</small></div>
+                   <div style={{textAlign:'center', display:'flex', flexDirection:'column', alignItems:'center'}}>
+                       <QRCodeCanvas id={`qr-${m._id}`} value={m._id} size={60} />
+                       <button style={styles.downBtn} onClick={() => downloadQR(m._id, m.name)}>Download QR</button>
+                       <button style={styles.delBtn} onClick={() => deleteMember(m._id)}>Delete</button>
+                   </div>
                 </div>
               ))}
            </div>
