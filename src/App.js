@@ -17,9 +17,12 @@ export default function App() {
   const [limit, setLimit] = useState(30);       // Limit visible books
   const [memLimit, setMemLimit] = useState(20); // Limit visible members
   
-  // --- NEW: TRANSACTION HISTORY STATE ---
   const [transactions, setTransactions] = useState([]); 
-  const [historyView, setHistoryView] = useState(null); // Stores ID of member being viewed
+  const [historyView, setHistoryView] = useState(null); 
+
+  // --- NEW: NOTICE BOARD STATE ---
+  const [notice, setNotice] = useState('');
+  const [newNotice, setNewNotice] = useState('');
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -46,38 +49,40 @@ export default function App() {
     try {
       console.log("Loading Data...");
       
-      // Parallel Fetch for speed
-      const [bRes, mRes, tRes] = await Promise.all([
+      const [bRes, mRes, tRes, nRes] = await Promise.all([
          axios.get(`${BASE_URL}/api/books`).catch(() => null),
          axios.get(`${BASE_URL}/api/members`).catch(() => null),
-         axios.get(`${BASE_URL}/api/transactions`).catch((e) => { console.error("History Error", e); return null; })
+         axios.get(`${BASE_URL}/api/transactions`).catch(() => null),
+         axios.get(`${BASE_URL}/api/notice`).catch(() => null) // <--- LOAD NOTICE
       ]);
 
-      // Fallback if APIs fail (legacy support)
-      if (!bRes) {
-         const fb = await axios.get(`${BASE_URL}/books`).catch(()=>null);
-         const fm = await axios.get(`${BASE_URL}/members`).catch(()=>null);
-         if(fb) setBooks(fb.data);
-         if(fm) setMembers(fm.data);
-         if(fb) setDisplayedBooks(fb.data);
-         if(fm) setDisplayedMembers(fm.data);
-      } else {
+      if (bRes) {
          setBooks(bRes.data);
+         setDisplayedBooks(bRes.data);
+      }
+      if (mRes) {
          setMembers(mRes.data);
-         setDisplayedBooks(bRes.data);   
          setDisplayedMembers(mRes.data);
       }
-
-      // SET TRANSACTIONS
-      if (tRes && tRes.data) {
-          console.log("✅ Transactions Loaded:", tRes.data.length);
-          setTransactions(tRes.data);
-      } else {
-          console.warn("⚠️ No Transactions Loaded (Check Backend)");
+      if (tRes) setTransactions(tRes.data);
+      
+      // SET NOTICE
+      if (nRes && nRes.data) {
+        setNotice(nRes.data.notice);
+        setNewNotice(nRes.data.notice);
       }
 
       console.log("Data Refresh Complete!");
     } catch (err) { console.error("Error loading data", err); }
+  };
+
+  // --- NOTICE BOARD ACTIONS ---
+  const updateNotice = async () => {
+    try {
+      await axios.post(`${BASE_URL}/api/notice`, { notice: newNotice });
+      alert("✅ Notice Board Updated!");
+      refreshData();
+    } catch (e) { alert("Failed to update notice"); }
   };
 
   // --- HELPER: Find who has a book ---
@@ -88,12 +93,11 @@ export default function App() {
     return member ? member.name : "Unknown Member";
   };
 
-  // --- NEW: DOWNLOAD EXCEL FUNCTION ---
+  // --- DOWNLOAD EXCEL ---
   const downloadExcel = async () => {
     try {
       const response = await fetch(`${BASE_URL}/api/export-excel`);
       if (!response.ok) throw new Error('Network response was not ok');
-      
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -104,37 +108,29 @@ export default function App() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (error) {
-      console.error('Download failed:', error);
       alert('Failed to download Excel file. Check if backend is running.');
     }
   };
 
-  // --- 2. QR CODE DOWNLOADER ---
+  // --- QR CODE DOWNLOADER ---
   const downloadQR = (id, title) => {
     const canvas = document.getElementById(`qr-${id}`);
     if (canvas) {
       const qrSize = 300; 
       const padding = 20; 
       const textSpace = 50; 
-      
       const labelCanvas = document.createElement("canvas");
       const ctx = labelCanvas.getContext("2d");
-      
       labelCanvas.width = qrSize + (padding * 2);
       labelCanvas.height = qrSize + (padding * 2) + textSpace;
-      
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
-      
       ctx.drawImage(canvas, padding, padding, qrSize, qrSize);
-      
       ctx.fillStyle = "#000000";
       ctx.font = "bold 24px Arial"; 
       ctx.textAlign = "center";
-      
       const cleanTitle = title.length > 18 ? title.substring(0, 18) + "..." : title;
       ctx.fillText(cleanTitle, labelCanvas.width / 2, qrSize + padding + 35);
-      
       const pngUrl = labelCanvas.toDataURL("image/png");
       let downloadLink = document.createElement("a");
       downloadLink.href = pngUrl;
@@ -145,8 +141,7 @@ export default function App() {
     }
   };
 
-  // --- 3. ACTIONS ---
-
+  // --- ACTIONS ---
   const addBook = async () => {
     if (!newBook.title) return alert("Title Required");
     try { await axios.post(`${BASE_URL}/api/books`, newBook); } 
@@ -226,8 +221,7 @@ export default function App() {
     catch(e) { alert("Error: Book not found or not currently issued."); }
   };
 
-  // --- 4. FILTERS ---
-
+  // --- FILTERS ---
   const handleAdminBookFilter = () => {
     if (!adminBookQuery) return setDisplayedBooks(books);
     const q = adminBookQuery.toLowerCase();
@@ -281,7 +275,8 @@ export default function App() {
     downBtn: { padding: '5px 10px', cursor: 'pointer', background: '#0277bd', color: 'white', border: 'none', borderRadius: '3px', marginTop: '5px' },
     filterBox: { background: '#dcedc8', padding: '15px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #c5e1a5' },
     input: { padding: '8px', margin: '5px', borderRadius: '4px', border: '1px solid #ccc' },
-    card: { background: 'white', padding: '15px', margin: '10px 0', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }
+    card: { background: 'white', padding: '15px', margin: '10px 0', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' },
+    noticeBoard: { background: '#fff9c4', border: '2px solid #fbc02d', padding: '15px', borderRadius: '8px', textAlign: 'center', marginBottom: '20px', fontSize: '18px', color: '#333' }
   };
 
   return (
@@ -298,6 +293,13 @@ export default function App() {
         {!isAdmin ? <button style={{...styles.btn, background:'#0d47a1'}} onClick={() => setView('login')}>Admin Login</button> : 
         <><button style={{...styles.btn, background:'#1b5e20'}} onClick={() => setView('admin')}>Dashboard</button><button style={{...styles.btn, background:'#c62828'}} onClick={handleLogout}>Logout</button></>}
       </div>
+
+      {/* --- PUBLIC NOTICE BOARD --- */}
+      {view === 'public' && notice && (
+        <div style={styles.noticeBoard}>
+          <strong>📢 NOTICE:</strong> {notice}
+        </div>
+      )}
 
       {/* PUBLIC VIEW */}
       {view === 'public' && (
@@ -341,12 +343,22 @@ export default function App() {
       {/* ADMIN DASHBOARD */}
       {view === 'admin' && (
         <div>
-           {/* --- NEW: EXPORT DATA SECTION --- */}
+           {/* --- NEW: ADMIN NOTICE EDITOR --- */}
+           <div style={{...styles.filterBox, border:'2px solid #0288d1', background:'#e1f5fe'}}>
+              <h3>📢 Update Public Notice</h3>
+              <input 
+                style={{...styles.input, width:'60%'}} 
+                placeholder="Enter notice message here..." 
+                value={newNotice} 
+                onChange={e=>setNewNotice(e.target.value)} 
+              />
+              <button style={{...styles.btn, background:'#0277bd'}} onClick={updateNotice}>UPDATE NOTICE</button>
+              <button style={{...styles.btn, background:'#888', marginLeft:'5px'}} onClick={()=>setNewNotice('')}>CLEAR</button>
+           </div>
+
+           {/* EXPORT DATA */}
            <div style={{textAlign:'right', marginBottom:'10px'}}>
-              <button 
-                 onClick={downloadExcel} 
-                 style={{...styles.btn, background:'#2e7d32', padding:'12px 20px', fontSize:'16px', border:'2px solid white', boxShadow:'0 2px 5px rgba(0,0,0,0.2)'}}
-              >
+              <button onClick={downloadExcel} style={{...styles.btn, background:'#2e7d32', padding:'12px 20px', fontSize:'16px', border:'2px solid white', boxShadow:'0 2px 5px rgba(0,0,0,0.2)'}}>
                 📊 Download Full Excel Report
               </button>
            </div>
