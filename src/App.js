@@ -88,6 +88,27 @@ export default function App() {
     return member ? member.name : "Unknown Member";
   };
 
+  // --- NEW: DOWNLOAD EXCEL FUNCTION ---
+  const downloadExcel = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/api/export-excel`);
+      if (!response.ok) throw new Error('Network response was not ok');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Library_Data_${new Date().toLocaleDateString()}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download Excel file. Check if backend is running.');
+    }
+  };
+
   // --- 2. QR CODE DOWNLOADER ---
   const downloadQR = (id, title) => {
     const canvas = document.getElementById(`qr-${id}`);
@@ -320,6 +341,16 @@ export default function App() {
       {/* ADMIN DASHBOARD */}
       {view === 'admin' && (
         <div>
+           {/* --- NEW: EXPORT DATA SECTION --- */}
+           <div style={{textAlign:'right', marginBottom:'10px'}}>
+              <button 
+                 onClick={downloadExcel} 
+                 style={{...styles.btn, background:'#2e7d32', padding:'12px 20px', fontSize:'16px', border:'2px solid white', boxShadow:'0 2px 5px rgba(0,0,0,0.2)'}}
+              >
+                📊 Download Full Excel Report
+              </button>
+           </div>
+
            {/* 1. TRANSACTION */}
            <div style={{...styles.filterBox, border:'2px solid gold'}}>
               <h3>⚡ Quick Transaction</h3>
