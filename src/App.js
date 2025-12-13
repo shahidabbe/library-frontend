@@ -242,7 +242,7 @@ export default function App() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (username === "admin" && password === "1234") {
+    if (username === "Ibrahim" && password === "7692") {
       setIsAdmin(true); setView('admin'); showAllBooks(); showAllMembers();
     } else alert("Wrong Password");
   };
